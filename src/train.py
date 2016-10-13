@@ -6,6 +6,8 @@ import collections
 from datetime import datetime, timedelta, timezone
 
 
+PERIOD_DELTA = timedelta(minutes=5)
+FAULTY_CONNS_LIMIT = 5
 
 
 def parse_line(line):
@@ -34,7 +36,7 @@ def parse_line(line):
         match = None
     return match
 
-def parse_logfile(fname, maxlines=None):
+def parse_logfile(fname, maxlines=None, verbose=False):
     """ Parse access-attemps in nginx-logfile.
 
     Args:
@@ -55,7 +57,8 @@ def parse_logfile(fname, maxlines=None):
             if match:
                 yield match
             else:
-                print('No match on line {}:\n{}'.format(i, line))
+                if verbose:
+                    print('No match on line {}:\n{}'.format(i, line))
                 num_failed += 1
             num_lines = i
     print('Parsing failed to parse {}/{} lines ({:.2%})'
@@ -76,7 +79,7 @@ def events_stats(events):
 
     for evt in events:
         d = ip_data[evt['ip']]
-        if evt['ts'] > d['last_hour'] + timedelta(hours=1):
+        if evt['ts'] > d['last_hour'] + PERIOD_DELTA:
             d['last_hour'] = evt['ts']
 
             # Record max-numbers during last hour
@@ -87,22 +90,31 @@ def events_stats(events):
                 d['max_faulty_conns_per_hour'] = d['faulty_conns_lst_hr']
             d['faulty_conns_lst_hr'] = 0
 
+        # Record faulty connection attempts (anything else than
+        # HTTP-code (2xx)
+        # print('status', repr(evt['status']))
+        if evt['status'][0] != '2':
+            d['faulty_conns'] += 1
+            d['faulty_conns_lst_hr'] += 1
         else:
-            # Record faulty connection attempts (anything else than
-            # HTTP-code (2xx)
-            # print('status', repr(evt['status']))
-            if evt['status'][0] != '2':
-                d['faulty_conns'] += 1
-                d['faulty_conns_lst_hr'] += 1
-            else:
-                d['succ_conns'] += 1
-                d['succ_conns_lst_hr'] += 1
-
+            d['succ_conns'] += 1
+            d['succ_conns_lst_hr'] += 1
 
     return ip_data
 
+def _analyze_most_frequent(ip_data):
 
-def analyze(logfile, filterfile, maxlines=None):
+    for feat, desc in (('max_conns_per_hour', 'successful'),
+                       ('max_faulty_conns_per_hour', 'non-successful')):
+        conn_freqs = collections.Counter({k:v[feat]
+                                          for k, v in ip_data.items()})
+        print('\nMost frequent {} responses\tCount per period'
+              .format(desc))
+        for i, (ip, freq) in enumerate(conn_freqs.most_common(10)):
+            print('#{}         {}\t{}'.format(i+1, ip, freq))
+
+
+def analyze(logfile, filterfile, maxlines=None, verbose=False):
     """ Main entrypoint for analyzing a logfile and producing filterfile.
 
     Filterfile can later be used in botdetector reverse-proxy to
@@ -111,12 +123,13 @@ def analyze(logfile, filterfile, maxlines=None):
     Args:
         logfile (str):      Path to nginx-logfile.
         filterfile (str):   Path to produced filterfile.
+        verbose (bool):     Verbose analysis
     """
-    events = parse_logfile(logfile, maxlines=maxlines)
+    events = parse_logfile(logfile, maxlines=maxlines, verbose=verbose)
     ip_data = events_stats(events)
 
     def _get_max_feature(featname):
-        return max(ip_data.items(),
+        ip, d = max(ip_data.items(),
                     key=lambda d: d[1][featname])
         return ip, d[featname], d
 
@@ -126,16 +139,27 @@ def analyze(logfile, filterfile, maxlines=None):
     most_failed_conns_pr_hr = _get_max_feature(
         'max_faulty_conns_per_hour')
 
-    print('Analysis of {}:'.format(logfile))
-    print('Number of ip\'s connected:           {}'.format(len(ip_data)))
+    print('\nAnalysis of {}. \nPeriod is {}:'
+          .format(logfile, PERIOD_DELTA))
+    print('Number of ip\'s connected:           {}'
+          .format(len(ip_data)))
     print('Most successful connections:          {}\t{}'
-          ''.format(most_conns[0], most_conns[1]))
+          .format(most_conns[0], most_conns[1]))
     print('Most failed connections:              {}\t{}'
-          ''.format(most_failed_conns[0], most_failed_conns[1]))
-    print('Most successful connections per hour: {}\t{}'
-          ''.format(most_conns_pr_hr[0], most_conns_pr_hr[1]))
-    print('Most failed connections per hour:     {}\t{}'
-          ''.format(most_failed_conns[0], most_failed_conns[1]))
+          .format(most_failed_conns[0], most_failed_conns[1]))
+    print('Most successful connections per period: {}\t{}'
+          .format(most_conns_pr_hr[0], most_conns_pr_hr[1]))
+    print('Most failed connections per period:     {}\t{}'
+          .format(most_failed_conns[0], most_failed_conns[1]))
+
+    _analyze_most_frequent(ip_data)
+
+    def _maybe_blacklist(d):
+        return d[1]['max_faulty_conns_per_hour'] > FAULTY_CONNS_LIMIT
+    maybe_blacklist = filter(_maybe_blacklist, ip_data.items())
+    print('Suggesting blacklisting of following ip\'s')
+    for ip, d in maybe_blacklist:
+        print(ip)
 
 
 def parse_args():
@@ -149,7 +173,7 @@ def parse_args():
                         help='Where to store produced filter')
     parser.add_argument('-v', '--verbose',
                         action='store_true',
-                        default=True,
+                        default=False,
                         help='Be verbose')
     parser.add_argument('--maxlines', '-m',
                         type=int,
@@ -163,7 +187,8 @@ if __name__ == '__main__':
 
     analyze(args.LOGFILE,
             filterfile=args.FILTERFILE,
-            maxlines=args.maxlines)
+            maxlines=args.maxlines,
+            verbose=args.verbose)
 
 
 
