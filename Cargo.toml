@@ -1,0 +1,22 @@
+[package]
+name = "botdetector"
+version = "0.1.0"
+authors = ["Anders Bennehag <anders@bennehag.com>"]
+
+[dependencies]
+time = "^0.1.*"
+persistent = "*"
+mount = "*"
+staticfile = "*"
+lru_time_cache = "^0.5.0"
+serde = "^0.8"
+serde_json = "^0.8"
+serde_derive = "0.8"
+
+[dependencies.iron]
+version = "^0.4.*"
+
+[dependencies.clap]
+version = "^2.*"
+default-features = false
+features = [ "suggestions", "color" ]
