@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Anders Bennehag <anders@bennehag.com>"]
 
 [dependencies]
+hyper = "^0.9.*"
 time = "^0.1.*"
 persistent = "*"
 mount = "*"
@@ -12,6 +13,8 @@ lru_time_cache = "^0.5.0"
 serde = "^0.8"
 serde_json = "^0.8"
 serde_derive = "0.8"
+log = "^0.3.*"
+env_logger = "^0.3.*"
 
 [dependencies.iron]
 version = "^0.4.*"
