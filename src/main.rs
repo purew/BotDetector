@@ -5,7 +5,7 @@ extern crate botdetector;
 use clap::{Arg, App, SubCommand};
 
 const ARG_LISTENING_ADDRESS: &'static str = "listening-address";
-const ARG_LISTENING_ADDRESS_DEFAULT: &'static str = "localhost";
+const ARG_LISTENING_ADDRESS_DEFAULT: &'static str = "127.0.0.1";
 const ARG_LISTENING_PORT: &'static str = "listeningport";
 const ARG_LISTENING_PORT_DEFAULT: &'static str = "8080";
 
