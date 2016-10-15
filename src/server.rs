@@ -8,6 +8,8 @@ use std::string::String;
 use std::path::Path;
 use std::net::{SocketAddr, IpAddr};
 use std::str::FromStr;
+use std::thread;
+use std::sync::mpsc;
 use self::lru_time_cache::LruCache;
 use ::hyper;
 use std::io::Read;
@@ -20,6 +22,10 @@ use self::time::precise_time_ns;
 use log;
 
 struct ResponseTime;
+
+struct ReqStats {
+
+}
 
 impl typemap::Key for ResponseTime {
     type Value = u64;
@@ -46,9 +52,11 @@ fn analytics(_: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, "Hello World")))
 }
 
-fn proxy(req: &mut Request, 
-         address: &str, 
-         port: u16) -> IronResult<Response> {
+fn proxy(req: &mut Request,
+         address: &str,
+         port: u16,
+         tx_stats: mpsc::Sender<ReqStats>,
+         ) -> IronResult<Response> {
 
     let client = hyper::Client::new();
     let backend_url = format!("{}://{}:{}/{}",
@@ -86,20 +94,20 @@ fn proxy(req: &mut Request,
 pub fn run(listen_address: &str, listen_port: u16, 
            backend_address: &str, backend_port:u16) {
 
-
-    // TODO: Cleanup dance with variables in closure to fix 
-    //       lifetime-issues
+    let (tx, rx) = mpsc::channel();
+    // TODO: Fix lifetime-issues to clean up this dance with variables
     let cl_addr = backend_address.to_string();
     let cl_port = backend_port.clone();
-    let custom_proxy = move |req: &mut Request| 
-            -> IronResult<Response> {
-        proxy(req, &cl_addr, cl_port)
+    let cl_tx = tx.clone();
+    let custom_proxy = |req: &mut Request| 
+            -> Box<IronResult<Response>> {
+        let cl_tx = tx.clone();
+        Box::new(<proxy(req, &cl_addr, cl_port, cl_tx))>
     };
 
     let mut mount = Mount::new();
     mount.mount("/analytics/", analytics)
          .mount("/", custom_proxy);
-    ;
 
     let mut chain = Chain::new(mount);
     chain.link_before(ResponseTime);
