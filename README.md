@@ -2,7 +2,7 @@ BotDetector - Proof-of-concept
 ==============================
 
 
-[![Build status](https://travis-ci.org/PureW/BotDetector.svg?branch=master)
+![Build status](https://travis-ci.org/PureW/BotDetector.svg?branch=master)
 
 A simple proof-of-concept of detecting scrapers/bots in a reverse-proxy written in Rust.
 
@@ -16,7 +16,7 @@ BotDetector parses a log-file from nginx to build (simple) rules on correct and 
 Mode: deploy
 ------------
 
-BotDetector acts as a reverse-proxy and analyses incoming traffic before hitting actual servers and can either drop verified bad actors or mark potential bad actors in an HTTP-header.
+BotDetector acts as a reverse-proxy and analyses incoming traffic before hitting actual servers and can either drop verified bad actors or mark potential bad actors in a HTTP-header.
 
 
 Building

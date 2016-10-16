@@ -46,6 +46,8 @@ function relaunch {
     RUST_BACKTRACE=1 RUST_LOG=$BIN target/debug/$BIN $BIN_ARGS &
 }
 
+relaunch
+
 # Setup filewatches on src
 while (true); do 
     inotifywait -rq  -e modify "$WATCHES" && relaunch

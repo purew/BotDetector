@@ -5,11 +5,10 @@ authors = ["Anders Bennehag <anders@bennehag.com>"]
 
 [dependencies]
 hyper = "^0.9.*"
-time = "^0.1.*"
 persistent = "*"
 mount = "*"
 staticfile = "*"
-lru_time_cache = "^0.5.0"
+lru-cache = "^0.1.*"
 serde = "^0.8"
 serde_json = "^0.8"
 serde_derive = "0.8"

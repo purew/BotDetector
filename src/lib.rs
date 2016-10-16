@@ -1,3 +1,10 @@
+//! A proof-of-concept of a reverse-proxy detecting bots/scrapers.
+//! 
+//!
+//! 
+//! 
+//! 
+#![warn(missing_docs)]
 #![feature(custom_derive)]
 #![feature(proc_macro)]
 #[macro_use]
@@ -14,4 +21,5 @@ extern crate log;
 
 pub mod server;
 pub mod analytics;
+pub mod detector;
 

@@ -1,8 +1,6 @@
 
 extern crate mount;
 extern crate staticfile;
-extern crate time;
-extern crate lru_time_cache;
 
 use std::string::String;
 use std::path::Path;
@@ -14,12 +12,11 @@ use std::sync::Mutex;
 use std::io;
 use std::io::Read;
 
-use self::lru_time_cache::LruCache;
 use hyper;
 use hyper::server::{Handler, Server, Request, Response};
 use hyper::status::StatusCode;
-use self::time::precise_time_ns;
-use log;
+
+use ::detector;
 
 struct ReqStats {
 }
@@ -88,13 +85,22 @@ struct BaseHandler {
     sender: Mutex<mpsc::Sender<ReqStats>>,
     backend_address: String,
     backend_port: u16,
+    detector: Mutex<detector::Detector>,
 }
 
 impl BaseHandler {
 
     fn route(&self, mut req: &mut Request) -> Resp {
+
+        if self.is_bad_actor(&mut req) {
+            // Early return for bad actors
+            return Resp::new(StatusCode::Unauthorized,
+                             "Go away silly bot");
+        }
+
         match req.uri.clone() {
             hyper::uri::RequestUri::AbsolutePath(ref p) => {
+                info!("BaseHandler::route received {}", p);
                 if p.starts_with("/analytics") {
                     analytics(&mut req)
                 } else {
@@ -111,10 +117,35 @@ impl BaseHandler {
             }
         }
     }
+
+    /// Handle the details of checking ActorStatus and marking header
+    fn is_bad_actor(&self, mut req: &mut Request) -> bool {
+
+        // TODO: Probably want to call `new_event` when we know
+        //       if the route is valid or not.
+        let mut detector = self.detector.lock().unwrap();
+        match detector.new_event(&req.remote_addr) {
+            detector::ActorStatus::BadActor => {
+                true
+            },
+            detector::ActorStatus::SuspiciousActor(p) => {
+                // Add a header for backend to see suspicious actors
+                req.headers.set_raw("bot-probability",
+                                    vec!(format!("{}", p)
+                                            .to_string()
+                                            .into_bytes()));
+                false
+            },
+            detector::ActorStatus::GoodActor => {
+                false
+            }
+        }
+    }
 }
 
 impl Handler for BaseHandler {
     fn handle(&self, mut req: Request, mut resp: Response) {
+
         let r = self.route(&mut req);
         {
             *resp.status_mut() = r.status;
@@ -141,6 +172,9 @@ pub fn run(listen_address: &str, listen_port: u16,
                 sender: Mutex::new(tx),
                 backend_address: backend_address.to_string(),
                 backend_port: backend_port,
+                detector: Mutex::new(
+                    detector::Detector::new(
+                        detector::DetectorConf::new())),
             })
             .unwrap();
 }
