@@ -5,7 +5,7 @@ set -e
 set -u
 
 BIN=botdetector
-BIN_ARGS="deploy filterfile"
+BIN_ARGS="deploy"
 PORT_BACKEND=9000
 PID=/tmp/deploy_script.pid
 WATCHES=src

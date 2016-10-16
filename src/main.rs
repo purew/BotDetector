@@ -14,9 +14,9 @@ const ARG_BACKEND_ADDRESS_DEFAULT: &'static str = "localhost";
 const ARG_BACKEND_PORT: &'static str = "backend-port";
 const ARG_BACKEND_PORT_DEFAULT: &'static str = "9000";
 
-const ARG_FILTERFILE: &'static str = "filterfile";
-const ARG_FILTERFILE_DEFAULT: &'static str = ".filter";
-const ARG_LOGFILE_ACCESS: &'static str = "accesslog";
+//const ARG_FILTERFILE: &'static str = "filterfile";
+//const ARG_FILTERFILE_DEFAULT: &'static str = ".filter";
+//const ARG_LOGFILE_ACCESS: &'static str = "accesslog";
 
 pub enum ProgArgs {
     Deploy {
@@ -38,11 +38,7 @@ fn parse_args() -> ProgArgs {
                 bots and scrapers")
         .subcommand(
             SubCommand::with_name("deploy")
-                .about("Deploy a trained filter, acting as reverse proxy")
-                .arg(Arg::with_name(ARG_FILTERFILE)
-                     .help("A file produced in training")
-                     .required(true)
-                     .index(1))
+                .about("Start reverse proxy")
                 .arg(Arg::with_name(ARG_LISTENING_ADDRESS)
                         .default_value(ARG_LISTENING_ADDRESS_DEFAULT)
                         .short("a")
@@ -64,18 +60,18 @@ fn parse_args() -> ProgArgs {
                         .takes_value(true)
                         .help("Backend port"))
         )
-        .subcommand(
-            SubCommand::with_name("train")
-                .about("Train a filter on nginx-logs")
-                .arg(Arg::with_name(ARG_LOGFILE_ACCESS)
-                     .help("Access-logfile from nginx")
-                     .index(1))
-                .arg(Arg::with_name(ARG_FILTERFILE)
-                        .short("p")
-                        .takes_value(true)
-                        .default_value(ARG_FILTERFILE_DEFAULT)
-                        .help("Listening port"))
-        )
+        //.subcommand(
+            //SubCommand::with_name("train")
+                //.about("Train a filter on nginx-logs")
+                //.arg(Arg::with_name(ARG_LOGFILE_ACCESS)
+                     //.help("Access-logfile from nginx")
+                     //.index(1))
+                //.arg(Arg::with_name(ARG_FILTERFILE)
+                        //.short("p")
+                        //.takes_value(true)
+                        //.default_value(ARG_FILTERFILE_DEFAULT)
+                        //.help("Listening port"))
+        //)
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("deploy") {

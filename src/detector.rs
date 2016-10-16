@@ -13,7 +13,7 @@ use self::lru_cache::LruCache;
 /// Track this many clients
 const NUM_CLIENTS_TRACK: usize = 10000;
 /// Track this many events per client
-const NUM_CLIENT_EVENTS: usize = 100;
+const NUM_CLIENT_EVENTS: usize = 10;
 
 pub const SUSP_PLACEHOLDER: f32 = 0.5;
 
@@ -160,8 +160,8 @@ mod tests {
     fn test_analyze_actor() {
 
         let num_good_evts = 4;
-        let num_susp_evts: usize = 20;
-        let num_bad_evts: usize = 45;
+        let num_susp_evts: usize = 6;
+        let num_bad_evts: usize = 9;
 
         let conf = DetectorConf {
             bad_evt_freq: num_bad_evts as f32 / 60.0,
