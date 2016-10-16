@@ -16,7 +16,7 @@ A simple test
 
 Execute supplied script
 ```
-./deploy_test_autoreload
+./deploy_test_autoreload.sh
 ```
 This starts a simple dummy-server and sets up `BotDetector` as a reverse proxy for this dummy-server.
 
@@ -27,16 +27,22 @@ curl localhost:8080/
 a few times in quick succession. The first requests will pass through while later requests should be denied:
 
 ```
-anders@falcon:~$ curl localhost:8080/
+$ curl localhost:8080/
 <p>Hello World!</p>
-anders@falcon:~$ curl localhost:8080/
+$ curl localhost:8080/
 <p>Hello World!</p>
-anders@falcon:~$ curl localhost:8080/
+$ curl localhost:8080/
 <p>Hello World!</p>
-anders@falcon:~$ curl localhost:8080/
+$ curl localhost:8080/
 <p>Hello World!</p>
-anders@falcon:~$ curl localhost:8080/
-Go away silly bot
+$ curl localhost:8080/
+<p>Go away silly bot<p>
+$ curl localhost:8080/botdetector_analytics
+{
+    "num_good_reqs": 4,
+    "num_susp_reqs": 1,
+    "num_bad_reqs": 1
+}
 ```
 
 server.rs

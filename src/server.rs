@@ -1,6 +1,4 @@
 
-extern crate mount;
-extern crate staticfile;
 
 use std::string::String;
 use std::path::Path;
@@ -16,9 +14,15 @@ use hyper;
 use hyper::server::{Handler, Server, Request, Response};
 use hyper::status::StatusCode;
 
+use serde_json;
+
 use ::detector;
 
+#[derive(Serialize, Deserialize, Default)]
 struct ReqStats {
+    num_good_reqs: u32,
+    num_susp_reqs: u32,
+    num_bad_reqs: u32,
 }
 
 #[derive(debug)]
@@ -37,16 +41,10 @@ impl Resp {
     }
 }
 
-fn analytics(_: &mut Request) -> Resp {
-    info!("Calling analytics");
-    Resp::new(StatusCode::Ok, "Hello World")
-}
-
 fn proxy(req: &mut Request,
          address: &str,
          port: u16,
          path: &str,
-         tx_stats: &Mutex<mpsc::Sender<ReqStats>>,
          ) -> Resp {
 
     let backend_url = format!("http://{}:{}{}",
@@ -81,10 +79,17 @@ fn proxy(req: &mut Request,
     }
 }
 
+/// BaseHandler persists data between requests
+/// 
+/// At first planned to use `mpsc` to send `ReqStats`
+/// lock-free to a separare aggregation-thread. 
+/// Turns out it is not possible to do away with the Mutex in Hyper, 
+/// see:
+/// https://stackoverflow.com/questions/40060378/why-does-hyper-require-handler-to-implement-sync-instead-of-using-independent-ha
 struct BaseHandler {
-    sender: Mutex<mpsc::Sender<ReqStats>>,
     backend_address: String,
     backend_port: u16,
+    req_stats: Mutex<ReqStats>,
     detector: Mutex<detector::Detector>,
 }
 
@@ -92,23 +97,23 @@ impl BaseHandler {
 
     fn route(&self, mut req: &mut Request) -> Resp {
 
-        if self.is_bad_actor(&mut req) {
+        if self.check_bad_actor(&mut req) {
             // Early return for bad actors
             return Resp::new(StatusCode::Unauthorized,
-                             "Go away silly bot");
+                             "<p>Go away silly bot<p>\n");
         }
 
         match req.uri.clone() {
             hyper::uri::RequestUri::AbsolutePath(ref p) => {
                 info!("BaseHandler::route received {}", p);
-                if p.starts_with("/analytics") {
-                    analytics(&mut req)
+                if p.starts_with("/botdetector_analytics") {
+                    self.analytics(&mut req)
                 } else {
                     proxy(&mut req,
                           &self.backend_address,
                           self.backend_port,
                           &p,
-                          &self.sender)
+                          )
                 }
             },
             _ => {
@@ -119,13 +124,15 @@ impl BaseHandler {
     }
 
     /// Handle the details of checking ActorStatus and marking header
-    fn is_bad_actor(&self, mut req: &mut Request) -> bool {
+    fn check_bad_actor(&self, mut req: &mut Request) -> bool {
 
         // TODO: Probably want to call `new_event` when we know
         //       if the route is valid or not.
         let mut detector = self.detector.lock().unwrap();
         match detector.new_event(&req.remote_addr) {
             detector::ActorStatus::BadActor => {
+                let mut s = self.req_stats.lock().unwrap();
+                (*s).num_bad_reqs += 1u32;
                 true
             },
             detector::ActorStatus::SuspiciousActor(p) => {
@@ -134,10 +141,29 @@ impl BaseHandler {
                                     vec!(format!("{}", p)
                                             .to_string()
                                             .into_bytes()));
+                let mut s = self.req_stats.lock().unwrap();
+                (*s).num_susp_reqs += 1u32;
                 false
             },
             detector::ActorStatus::GoodActor => {
+                let mut s = self.req_stats.lock().unwrap();
+                (*s).num_good_reqs += 1u32;
                 false
+            }
+        }
+    }
+
+    fn analytics(&self, _: &mut Request) -> Resp {
+        info!("Calling analytics");
+        match serde_json::to_string_pretty(&*self.req_stats.lock().unwrap()) {
+            Ok(s) => {
+                Resp::new(StatusCode::Ok, s)
+            },
+            Err(err) => {
+                error!("Error in serializing stats: {:?}",
+                       err);
+                Resp::new(StatusCode::InternalServerError, 
+                          "I am terribly sorry, something went wrong")
             }
         }
     }
@@ -158,7 +184,7 @@ impl Handler for BaseHandler {
 pub fn run(listen_address: &str, listen_port: u16, 
            backend_address: &str, backend_port:u16) {
 
-    let (tx, rx) = mpsc::channel();
+    //let (tx, rx) = mpsc::channel();
 
     let listen_to: SocketAddr = format!("{}:{}", 
                                         listen_address, 
@@ -169,7 +195,7 @@ pub fn run(listen_address: &str, listen_port: u16,
           listen_to, listen_address, listen_port);
     Server::http(listen_to).unwrap()
             .handle(BaseHandler {
-                sender: Mutex::new(tx),
+                req_stats: Mutex::new(ReqStats::default()),
                 backend_address: backend_address.to_string(),
                 backend_port: backend_port,
                 detector: Mutex::new(
